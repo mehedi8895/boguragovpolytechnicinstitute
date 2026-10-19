@@ -41,7 +41,7 @@ create table if not exists public.bgpi_notices (
 create table if not exists public.bgpi_departments (
   id uuid primary key default gen_random_uuid(),
   name_bn text not null,
-  name_en text not null,
+  name_en text not null unique,
   description text,
   image_or_icon text,
   display_order integer not null default 0,

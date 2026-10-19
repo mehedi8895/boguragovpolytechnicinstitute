@@ -64,3 +64,14 @@ The logo/crest in `assets/images/crest.svg` is an original illustrative placehol
 - Vercel production deployment URL: **Not created or verified** in this setup.
 - Teacher directory intentionally remains empty until a verified teacher PDF/list is supplied.
 - Browser-level automated tests have not been run from this repository connector. Please test the live site at 360, 390, 768, 1024 and 1440 px, and verify RLS with both admin and non-admin accounts before production use.
+
+## Faculty directory import
+
+The public faculty section now supports:
+- Search by teacher name/designation.
+- One-click department filter buttons.
+- Responsive teacher cards with photo, designation, contact links, and official profile link where present.
+
+For the teacher list supplied as a PDF, the prepared import file is `supabase/seed_faculty.sql`. First create/use a **dedicated BGPI Supabase project**, then run `supabase/schema.sql` followed by `supabase/seed_faculty.sql` in that project's SQL Editor. The seed marks imported rows as published so they appear on the site. Some source PDF text is OCR-imperfect; verify names and contact details against the official teacher list before treating them as final. Do not run these scripts on the Gadgets BD or eFootball project.
+
+Set the matching project's URL and public publishable/anon key in `assets/js/config.js`. Never put a service-role key in browser code.

@@ -62,6 +62,7 @@ async function loadPublicData() {
   try {
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    loadFaculty(supabase);
     try {
       const { data: departments, error: departmentError } = await supabase.from("bgpi_departments").select("name_bn,name_en,description,image_or_icon,display_order").eq("published",true).order("display_order",{ascending:true});
       if (!departmentError && departments?.length) {
@@ -84,4 +85,78 @@ async function loadPublicData() {
     renderNoticeEmpty("নোটিশ লোড করা যায়নি","সংযোগে সমস্যা হয়েছে। পরে আবার চেষ্টা করুন অথবা অফিসিয়াল নোটিশ আর্কাইভ দেখুন।");
   }
 }
+
+const facultyCache = [];
+const departmentBn = {
+  "Computer Science Technology":"কম্পিউটার সায়েন্স টেকনোলজি",
+  "Civil Technology":"সিভিল টেকনোলজি",
+  "Electrical Technology":"ইলেকট্রিক্যাল টেকনোলজি",
+  "Mechanical Technology":"মেকানিক্যাল টেকনোলজি",
+  "Electronics Technology":"ইলেকট্রনিক্স টেকনোলজি",
+  "Power Technology":"পাওয়ার টেকনোলজি",
+  "Refrigeration and Air Conditioning (RAC) Technology":"রেফ্রিজারেশন অ্যান্ড এয়ার কন্ডিশনিং",
+  "Tourism and Hospitality Management":"ট্যুরিজম অ্যান্ড হসপিটালিটি ম্যানেজমেন্ট",
+  "Mining and Mine Survey Technology":"মাইনিং অ্যান্ড মাইন সার্ভে"
+};
+const facultyDepartmentLabel = value => departmentBn[value] || value || "অন্যান্য";
+function safeExternalUrl(value) {
+  try { const u = new URL(value); return ["https:","http:"].includes(u.protocol) ? u.href : ""; } catch { return ""; }
+}
+function renderFaculty() {
+  const grid = $("#faculty-grid"), filters = $("#faculty-filters");
+  if (!grid || !filters) return;
+  const query = ($("#faculty-search")?.value || "").trim().toLocaleLowerCase("bn");
+  const active = filters.querySelector(".faculty-filter.active")?.dataset.filter || "all";
+  const shown = facultyCache.filter(t => {
+    const matchesDepartment = active === "all" || t.department === active;
+    const haystack = [t.name_bn,t.name_en,t.designation_bn,t.designation_en,t.department].filter(Boolean).join(" ").toLocaleLowerCase("bn");
+    return matchesDepartment && (!query || haystack.includes(query));
+  });
+  $("#faculty-count").textContent = shown.length + " জন শিক্ষক/কর্মকর্তা";
+  if (!shown.length) {
+    grid.innerHTML = '<div class="empty-state faculty-empty"><span class="empty-icon">♙</span><h3>'+(facultyCache.length ? "কোনো তথ্য পাওয়া যায়নি" : "শিক্ষক তথ্য এখনো যুক্ত হয়নি")+'</h3><p>'+(facultyCache.length ? "অন্য নাম বা বিভাগ দিয়ে খুঁজে দেখুন।" : "সঠিক BGPI Supabase project-এ শিক্ষক তথ্য import এবং publish করলে এখানে দেখা যাবে।")+'</p></div>';
+    return;
+  }
+  grid.innerHTML = shown.map(t => {
+    const photo = safeExternalUrl(t.photo_url);
+    const profile = safeExternalUrl(t.profile_url);
+    const phone = String(t.phone || "").replace(/[^+\d]/g,"");
+    const email = String(t.email || "").trim();
+    const initial = escapeHtml((t.name_bn || "শ").trim().slice(0,1));
+    return '<article class="faculty-card">'+
+      '<div class="faculty-card-photo">'+(photo?'<img src="'+escapeHtml(photo)+'" alt="'+escapeHtml(t.name_bn)+'" loading="lazy" onerror="this.remove();this.parentElement.classList.add(\'photo-missing\')">':'')+'<span class="faculty-initial">'+initial+'</span></div>'+
+      '<div class="faculty-card-body"><span class="faculty-dept-tag">'+escapeHtml(facultyDepartmentLabel(t.department))+'</span>'+
+      '<h3>'+escapeHtml(t.name_bn)+'</h3><p class="faculty-designation">'+escapeHtml(t.designation_bn || "শিক্ষক")+'</p>'+
+      (t.name_en?'<p class="faculty-name-en">'+escapeHtml(t.name_en)+'</p>':"")+
+      '<div class="faculty-card-actions">'+(phone?'<a href="tel:'+escapeHtml(phone)+'" aria-label="ফোন করুন">☎ ফোন</a>':"")+(email?'<a href="mailto:'+escapeHtml(email)+'" aria-label="ইমেইল করুন">✉ ইমেইল</a>':"")+(profile?'<a href="'+escapeHtml(profile)+'" target="_blank" rel="noopener noreferrer">প্রোফাইল ↗</a>':"")+'</div></div></article>';
+  }).join("");
+}
+function buildFacultyFilters() {
+  const filters = $("#faculty-filters");
+  if (!filters) return;
+  const departments = [...new Set(facultyCache.map(t => t.department).filter(Boolean))];
+  filters.innerHTML = '<button class="faculty-filter active" type="button" data-filter="all">সব শিক্ষক ('+facultyCache.length+')</button>'+departments.map(d => '<button class="faculty-filter" type="button" data-filter="'+escapeHtml(d)+'">'+escapeHtml(facultyDepartmentLabel(d))+' ('+facultyCache.filter(t=>t.department===d).length+')</button>').join("");
+  filters.querySelectorAll(".faculty-filter").forEach(button => button.addEventListener("click", () => {
+    filters.querySelectorAll(".faculty-filter").forEach(b => b.classList.toggle("active", b === button));
+    renderFaculty();
+  }));
+}
+$("#faculty-search")?.addEventListener("input", renderFaculty);
+async function loadFaculty(supabase) {
+  const grid = $("#faculty-grid");
+  try {
+    const { data, error } = await supabase.from("bgpi_faculty")
+      .select("id,name_bn,name_en,designation_bn,designation_en,department,email,phone,photo_url,profile_url,sort_order")
+      .eq("published", true).order("sort_order", {ascending:true}).order("name_bn", {ascending:true});
+    if (error) throw error;
+    facultyCache.splice(0, facultyCache.length, ...(data || []));
+    buildFacultyFilters();
+    renderFaculty();
+  } catch (error) {
+    console.warn("BGPI faculty could not load", error);
+    if (grid) grid.innerHTML = '<div class="empty-state faculty-empty"><span class="empty-icon">♙</span><h3>শিক্ষক তালিকা লোড হয়নি</h3><p>Supabase table, RLS policy এবং project configuration যাচাই করুন।</p></div>';
+    $("#faculty-count").textContent = "সংযোগ যাচাই প্রয়োজন";
+  }
+}
+
 loadPublicData();

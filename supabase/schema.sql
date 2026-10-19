@@ -20,11 +20,14 @@ create table if not exists public.bgpi_faculty (
   email text,
   phone text,
   photo_url text,
+  profile_url text,
   sort_order integer not null default 0,
   published boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.bgpi_faculty add column if not exists profile_url text;
 
 create table if not exists public.bgpi_notices (
   id uuid primary key default gen_random_uuid(),
